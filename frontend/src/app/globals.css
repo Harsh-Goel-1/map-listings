@@ -1836,10 +1836,199 @@ img {
   color: #991b1b;
 }
 
-/* Custom Pin on Admin Map */
+/* ── Dedicated Google Maps Import Card ── */
+.admin-import-card {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--rounded-lg);
+  padding: 16px 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-import-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #4285f4, #34a853, #fbbc05, #ea4335);
+}
+
+.admin-import-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-import-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-import-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--rounded-pill);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(66, 133, 244, 0.08);
+  color: #1a73e8;
+  border: 1px solid rgba(66, 133, 244, 0.2);
+}
+
+.admin-import-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.admin-import-card-sub {
+  font-size: 12px;
+  color: var(--color-mute);
+  margin: 0;
+}
+
+.admin-import-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-import-input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.admin-import-input {
+  width: 100%;
+  padding: 10px 36px 10px 38px;
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--rounded-md);
+  font-size: 13px;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.admin-import-input:focus {
+  background: #ffffff;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+.admin-import-icon-left {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--color-mute);
+  pointer-events: none;
+}
+
+.admin-import-input:focus ~ .admin-import-icon-left {
+  color: var(--color-ink);
+}
+
+.admin-import-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  border-radius: var(--rounded-md);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.admin-import-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.admin-import-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.admin-import-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--color-mute);
+}
+
+.admin-import-chip {
+  padding: 3px 9px;
+  background: var(--color-canvas-soft-2);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-pill);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-body);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.admin-import-chip:hover {
+  background: var(--color-canvas-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.admin-import-feedback {
+  padding: 8px 12px;
+  border-radius: var(--rounded-sm);
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+.admin-import-feedback.success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.admin-import-feedback.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+/* Custom Pin on Admin Map - Precisely anchored at tip */
 .admin-pin-marker {
   position: relative;
-  transform: translate(-50%, -100%);
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1847,11 +2036,11 @@ img {
 }
 
 .admin-pin-body {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: var(--color-primary);
+  background: #ea4335;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1865,11 +2054,11 @@ img {
 
 .admin-pin-pulse {
   position: absolute;
-  bottom: -4px;
-  width: 10px;
-  height: 6px;
+  bottom: -2px;
+  width: 8px;
+  height: 4px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.35);
   filter: blur(1px);
 }
 

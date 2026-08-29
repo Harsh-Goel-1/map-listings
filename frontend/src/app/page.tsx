@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from '@/components/Header';
 import FilterBar from '@/components/FilterBar';
 import ListingPanel from '@/components/ListingPanel';
@@ -60,6 +60,34 @@ export default function Home() {
     setSelectedListing(null);
   };
 
+  const displayedListings = useMemo(() => {
+    if (!searchedArea || listings.length === 0) return listings;
+
+    // Calculate distance to searched area center
+    const withDistance = listings.map((l) => {
+      const R = 6371000;
+      const dLat = ((l.latitude - searchedArea.lat) * Math.PI) / 180;
+      const dLng = ((l.longitude - searchedArea.lng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((searchedArea.lat * Math.PI) / 180) *
+          Math.cos((l.latitude * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const dist = 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return { ...l, distance: dist };
+    });
+
+    // Check if any listings are within generous vicinity of searched area (3km)
+    const inVicinity = withDistance.filter((l) => l.distance <= Math.max(searchedArea.radius * 1.5, 3000));
+    if (inVicinity.length > 0) {
+      return inVicinity.sort((a, b) => a.distance - b.distance);
+    }
+
+    // Otherwise sort all by distance so closest appears first
+    return withDistance.sort((a, b) => a.distance - b.distance);
+  }, [listings, searchedArea]);
+
   return (
     <div className="app-container">
       <Header />
@@ -103,7 +131,7 @@ export default function Home() {
 
       <main className="main-content">
         <ListingPanel
-          listings={listings}
+          listings={displayedListings}
           selectedId={selectedListing?.id || null}
           hoveredId={hoveredId}
           loading={loading}
@@ -111,7 +139,7 @@ export default function Home() {
           onHover={handleHoverListing}
         />
         <MapView
-          listings={listings}
+          listings={displayedListings}
           selectedListing={selectedListing}
           hoveredId={hoveredId}
           searchedArea={searchedArea}

@@ -412,6 +412,13 @@ export default function AdminPage() {
             onAddressChange={(detectedAddress) => {
               setForm((prev) => ({ ...prev, address: detectedAddress }));
             }}
+            onProjectSuggest={(name) => {
+              setForm((prev) => ({
+                ...prev,
+                projectName: prev.projectName || name,
+                societyName: prev.societyName || name,
+              }));
+            }}
           />
 
           <div className="admin-field" style={{ marginTop: 'var(--space-md)' }}>

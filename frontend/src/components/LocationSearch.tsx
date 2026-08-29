@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
+import { searchNoidaLocations } from '@/lib/noidaLocations';
 
 export interface SearchedArea {
   label: string;
@@ -90,17 +91,31 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch suggestions using Places API (New) with Geocoding fallback (Zero legacy APIs)
+  // Fetch suggestions using Places API (New), instant Noida database, and Geocoding fallback
   const fetchSuggestions = useCallback(
     async (input: string) => {
-      if (!input || input.trim().length < 2) {
+      if (!input || input.trim().length < 1) {
         setSuggestions([]);
         return;
       }
 
       const trimmed = input.trim();
 
-      // 1. Try modern Places API (New) AutocompleteSuggestion
+      // 1. Instant match from curated Noida sectors & societies database (0ms latency, 100% reliable)
+      const localMatches = searchNoidaLocations(trimmed, 5);
+      const localItems: SuggestionItem[] = localMatches.map((loc) => ({
+        id: loc.id,
+        mainText: loc.name,
+        secondaryText: loc.secondary,
+        select: async () => ({
+          label: loc.name,
+          lat: loc.lat,
+          lng: loc.lng,
+          radius: loc.radius,
+        }),
+      }));
+
+      // 2. Try modern Places API (New) AutocompleteSuggestion if available
       if (places && (places as any).AutocompleteSuggestion) {
         try {
           if (!sessionTokenRef.current && (places as any).AutocompleteSessionToken) {
@@ -110,6 +125,12 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
           const request: any = {
             input: trimmed,
             includedRegionCodes: ['in'],
+            locationBias: {
+              circle: {
+                center: { lat: 28.5355, lng: 77.391 },
+                radius: 25000,
+              },
+            },
           };
           if (sessionTokenRef.current) {
             request.sessionToken = sessionTokenRef.current;
@@ -119,7 +140,7 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
           const rawSuggestions = response?.suggestions || [];
 
           if (rawSuggestions.length > 0) {
-            const items: SuggestionItem[] = rawSuggestions.slice(0, 5).map((s: any, idx: number) => {
+            const apiItems: SuggestionItem[] = rawSuggestions.slice(0, 5).map((s: any, idx: number) => {
               const pred = s.placePrediction;
               const main = extractText(pred?.mainText) || extractText(pred?.text) || trimmed;
               const secondary = extractText(pred?.secondaryText);
@@ -146,15 +167,29 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
                 },
               };
             });
-            setSuggestions(items);
+
+            // Combine API items with local matches, avoiding duplicates
+            const combined = [...apiItems];
+            for (const locItem of localItems) {
+              if (!combined.some((c) => c.mainText.toLowerCase().includes(locItem.mainText.toLowerCase().slice(0, 8)))) {
+                combined.push(locItem);
+              }
+            }
+            setSuggestions(combined.slice(0, 6));
             return;
           }
         } catch (err) {
-          console.warn('Places API (New) suggestions unavailable, falling back to Geocoder:', err);
+          // Places API (New) might be disabled in Google Console - seamlessly continue with local + geocoder
         }
       }
 
-      // 2. Seamless Geocoder fallback (Geocoding API is separate from legacy Places API)
+      // If local matches exist, show them immediately
+      if (localItems.length > 0) {
+        setSuggestions(localItems);
+        return;
+      }
+
+      // 3. Seamless Geocoder fallback
       if (geocoding?.Geocoder) {
         try {
           const geocoder = new geocoding.Geocoder();
@@ -227,10 +262,31 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
   // Direct search fallback when pressing Enter
   const handleDirectSearch = useCallback(
     async (text: string) => {
-      if (!text.trim() || !geocoding?.Geocoder) return;
+      const trimmed = text.trim();
+      if (!trimmed) return;
+
+      // 1. Instant check in local Noida database
+      const localMatches = searchNoidaLocations(trimmed, 1);
+      if (localMatches.length > 0) {
+        const match = localMatches[0];
+        const area: SearchedArea = {
+          label: match.name,
+          lat: match.lat,
+          lng: match.lng,
+          radius: match.radius,
+        };
+        setQuery(area.label);
+        setSuggestions([]);
+        setOpen(false);
+        onAreaSelected(area);
+        return;
+      }
+
+      // 2. Geocoder fallback
+      if (!geocoding?.Geocoder) return;
       setLoading(true);
       const geocoder = new geocoding.Geocoder();
-      const addressQuery = text.toLowerCase().includes('noida') ? text : `${text}, Noida`;
+      const addressQuery = trimmed.toLowerCase().includes('noida') ? trimmed : `${trimmed}, Noida`;
       geocoder.geocode(
         {
           address: addressQuery,
@@ -240,7 +296,7 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
           setLoading(false);
           if (status === google.maps.GeocoderStatus.OK && results && results[0]) {
             const r = results[0];
-            const main = r.formatted_address.split(',')[0] || text;
+            const main = r.formatted_address.split(',')[0] || trimmed;
             const area: SearchedArea = {
               label: main,
               lat: r.geometry.location.lat(),

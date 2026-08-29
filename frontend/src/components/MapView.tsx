@@ -41,8 +41,43 @@ function MapPanController({ selectedListing }: { selectedListing: Listing | null
   useEffect(() => {
     if (map && selectedListing) {
       map.panTo({ lat: selectedListing.latitude, lng: selectedListing.longitude });
+      const currentZoom = map.getZoom();
+      if (currentZoom !== undefined && currentZoom < 14) {
+        map.setZoom(15);
+      }
     }
   }, [map, selectedListing]);
+
+  return null;
+}
+
+// Controller to auto-fit bounds to all listings on initial load
+function MapInitialBoundsController({
+  listings,
+  hasSearchedArea,
+}: {
+  listings: Listing[];
+  hasSearchedArea: boolean;
+}) {
+  const map = useMap();
+  const fittedRef = useRef(false);
+
+  useEffect(() => {
+    if (!map || hasSearchedArea || listings.length === 0 || fittedRef.current) return;
+
+    try {
+      const bounds = new google.maps.LatLngBounds();
+      listings.forEach((l) => {
+        if (l.latitude && l.longitude) {
+          bounds.extend({ lat: l.latitude, lng: l.longitude });
+        }
+      });
+      map.fitBounds(bounds, 60);
+      fittedRef.current = true;
+    } catch (e) {
+      console.warn('Could not fit bounds to listings:', e);
+    }
+  }, [map, listings, hasSearchedArea]);
 
   return null;
 }
@@ -118,6 +153,7 @@ export default function MapView({
         }}
       >
         <MapPanController selectedListing={selectedListing} />
+        <MapInitialBoundsController listings={listings} hasSearchedArea={Boolean(searchedArea)} />
         <AreaHighlightController searchedArea={searchedArea} />
 
         {searchedArea && (
