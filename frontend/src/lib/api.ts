@@ -74,3 +74,26 @@ export async function createListing(payload: CreateListingPayload): Promise<List
   return response.json();
 }
 
+export async function updateListing(id: number, payload: CreateListingPayload): Promise<Listing> {
+  const response = await fetch(`${API_BASE}/api/listings/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(errBody || `Failed to update listing: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function deleteListing(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/listings/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(errBody || `Failed to delete listing: ${response.statusText}`);
+  }
+}
+

@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useRef, FormEvent, DragEvent, ChangeEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, FormEvent, DragEvent, ChangeEvent } from 'react';
 import Link from 'next/link';
-import { createListing, CreateListingPayload } from '@/lib/api';
+import { fetchListings, createListing, updateListing, deleteListing, CreateListingPayload } from '@/lib/api';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import {
   PropertyCategory,
   PropertyType,
   ListingType,
+  Listing,
 } from '@/types/listing';
 import AdminLocationPicker from '@/components/AdminLocationPicker';
+import { formatPrice } from '@/components/PropertyCard';
 
 const ADMIN_PASSWORD = 'admin123';
 
@@ -105,12 +107,38 @@ export default function AdminPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Edit and Manage state
+  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [listingsList, setListingsList] = useState<Listing[]>([]);
+  const [loadingListings, setLoadingListings] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [searchFilter, setSearchFilter] = useState('');
+
   // Cloudinary image upload states
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadListings = useCallback(async () => {
+    setLoadingListings(true);
+    try {
+      const data = await fetchListings({});
+      setListingsList(data);
+    } catch (err: any) {
+      console.error('Failed to load listings:', err);
+    } finally {
+      setLoadingListings(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authenticated) {
+      loadListings();
+    }
+  }, [authenticated, loadListings]);
 
   if (!authenticated) {
     return <PasswordGate onAuth={() => setAuthenticated(true)} />;
@@ -214,6 +242,72 @@ export default function AdminPage() {
     }));
   };
 
+  const handleEdit = (item: Listing) => {
+    setEditingId(item.id);
+    setForm({
+      title: item.title,
+      price: item.price,
+      bhk: item.bhk,
+      areaSqFt: item.areaSqFt,
+      propertyCategory: item.propertyCategory || 'RESIDENTIAL',
+      propertyType: item.propertyType,
+      listingType: item.listingType,
+      projectName: item.projectName || '',
+      societyName: item.societyName || '',
+      address: item.address || '',
+      contactNumber: item.contactNumber || '',
+      description: item.description || '',
+      latitude: item.latitude,
+      longitude: item.longitude,
+      imageUrls: item.imageUrls ? [...item.imageUrls] : [],
+      imageUrlDraft: '',
+    });
+    setError(null);
+    setSuccess(null);
+    setActiveTab('create');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setForm(INITIAL_FORM);
+    setError(null);
+    setSuccess(null);
+  };
+
+  const handleDelete = async (item: Listing) => {
+    if (!window.confirm(`Are you sure you want to delete "${item.title}" (ID: ${item.id})? This will permanently remove it from the map.`)) {
+      return;
+    }
+
+    try {
+      setDeletingId(item.id);
+      await deleteListing(item.id);
+      setSuccess(`Listing "${item.title}" (ID: ${item.id}) deleted successfully.`);
+      await loadListings();
+      if (editingId === item.id) {
+        setEditingId(null);
+        setForm(INITIAL_FORM);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete listing');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const filteredListings = useMemo(() => {
+    if (!searchFilter.trim()) return listingsList;
+    const term = searchFilter.toLowerCase();
+    return listingsList.filter(
+      (l) =>
+        l.title.toLowerCase().includes(term) ||
+        (l.projectName && l.projectName.toLowerCase().includes(term)) ||
+        (l.societyName && l.societyName.toLowerCase().includes(term)) ||
+        l.address.toLowerCase().includes(term)
+    );
+  }, [listingsList, searchFilter]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -228,11 +322,21 @@ export default function AdminPage() {
       }
 
       const { imageUrlDraft, ...payload } = form;
-      const created = await createListing(payload);
-      setSuccess(`Listing "${created.title}" created successfully (ID: ${created.id})`);
-      setForm(INITIAL_FORM);
+      if (editingId) {
+        const updated = await updateListing(editingId, payload);
+        setSuccess(`Listing "${updated.title}" (ID: ${updated.id}) updated successfully!`);
+        setEditingId(null);
+        setForm(INITIAL_FORM);
+        await loadListings();
+        setActiveTab('manage');
+      } else {
+        const created = await createListing(payload);
+        setSuccess(`Listing "${created.title}" created successfully (ID: ${created.id})`);
+        setForm(INITIAL_FORM);
+        await loadListings();
+      }
     } catch (err: any) {
-      setError(err?.message || 'Failed to create listing');
+      setError(err?.message || (editingId ? 'Failed to update listing' : 'Failed to create listing'));
     } finally {
       setSubmitting(false);
     }
@@ -249,7 +353,46 @@ export default function AdminPage() {
             Back to Map
           </Link>
         </div>
-        <h1 className="admin-page-title">Add New Listing</h1>
+
+        <div className="admin-tabs">
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'create' ? 'active' : ''}`}
+            onClick={() => setActiveTab('create')}
+          >
+            {editingId ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit Listing #{editingId}
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                  <path d="M12 5v14m-7-7h14" />
+                </svg>
+                Add Listing
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'manage' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('manage');
+              loadListings();
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            Manage Listings
+            <span className="admin-tab-count">{listingsList.length}</span>
+          </button>
+        </div>
+
         <div className="admin-header-right" />
       </header>
 
@@ -270,7 +413,29 @@ export default function AdminPage() {
         </div>
       )}
 
-      <form className="admin-form" onSubmit={handleSubmit}>
+      {editingId && activeTab === 'create' && (
+        <div className="admin-edit-banner">
+          <div className="admin-edit-banner-text">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            <span>
+              You are currently editing <strong>{form.title || `Listing #${editingId}`}</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="admin-cancel-edit-btn"
+            onClick={handleCancelEdit}
+          >
+            Cancel Edit
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'create' && (
+        <form className="admin-form" onSubmit={handleSubmit}>
         {/* ── Section: Basic Info ── */}
         <section className="admin-section">
           <h2 className="admin-section-title">Basic Information</h2>
@@ -609,10 +774,156 @@ export default function AdminPage() {
             className="admin-submit-btn"
             disabled={submitting}
           >
-            {submitting ? 'Creating…' : 'Create Listing'}
+            {submitting
+              ? editingId
+                ? 'Updating…'
+                : 'Creating…'
+              : editingId
+              ? 'Update Listing'
+              : 'Create Listing'}
           </button>
         </div>
       </form>
+      )}
+
+      {/* ── Manage Existing Listings Tab ── */}
+      {activeTab === 'manage' && (
+        <div className="admin-manage-container">
+          <div className="admin-manage-header">
+            <div>
+              <h2 className="admin-section-title" style={{ marginBottom: '4px' }}>
+                All Active Listings ({filteredListings.length})
+              </h2>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-mute)' }}>
+                Click Edit to update property details or Delete to remove from the live map.
+              </p>
+            </div>
+
+            <div className="admin-manage-search">
+              <svg
+                className="admin-manage-search-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="15"
+                height="15"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                type="text"
+                className="admin-manage-search-input"
+                placeholder="Search properties by title, project, address…"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {loadingListings ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-mute)' }}>
+              Loading listings…
+            </div>
+          ) : filteredListings.length === 0 ? (
+            <div className="admin-manage-empty">
+              <div className="admin-manage-empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="40" height="40">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                </svg>
+              </div>
+              <p style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600 }}>
+                {searchFilter ? 'No listings matching your search' : 'No properties found in database'}
+              </p>
+              <button
+                type="button"
+                className="admin-btn-action-edit"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm(INITIAL_FORM);
+                  setActiveTab('create');
+                }}
+              >
+                + Add First Listing
+              </button>
+            </div>
+          ) : (
+            <div className="admin-manage-list">
+              {filteredListings.map((item) => (
+                <div key={item.id} className="admin-manage-card">
+                  <div className="admin-manage-card-left">
+                    {item.imageUrls && item.imageUrls.length > 0 ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.imageUrls[0]} alt={item.title} className="admin-manage-card-thumb" />
+                    ) : (
+                      <div className="admin-manage-card-thumb-empty">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="24" height="24">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="admin-manage-card-info">
+                      <h3 className="admin-manage-card-title">{item.title}</h3>
+                      <div className="admin-manage-card-meta">
+                        <span className="admin-manage-card-price">
+                          {formatPrice(item.price, item.listingType)}
+                        </span>
+                        <span className="admin-manage-card-pill">
+                          {item.bhk > 0 ? `${item.bhk} BHK` : item.propertyType}
+                        </span>
+                        {item.areaSqFt > 0 && (
+                          <span className="admin-manage-card-pill">
+                            {item.areaSqFt.toLocaleString('en-IN')} sq ft
+                          </span>
+                        )}
+                        <span className="admin-manage-card-pill">
+                          {item.listingType}
+                        </span>
+                        {item.projectName && (
+                          <span className="admin-manage-card-pill">
+                            {item.projectName}
+                          </span>
+                        )}
+                      </div>
+                      <p className="admin-manage-card-address">
+                        📍 {item.address} • ({item.latitude.toFixed(4)}, {item.longitude.toFixed(4)})
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="admin-manage-card-actions">
+                    <button
+                      type="button"
+                      className="admin-btn-action-edit"
+                      onClick={() => handleEdit(item)}
+                      title="Edit this listing"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-btn-action-delete"
+                      onClick={() => handleDelete(item)}
+                      disabled={deletingId === item.id}
+                      title="Delete this listing"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                        <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                      {deletingId === item.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

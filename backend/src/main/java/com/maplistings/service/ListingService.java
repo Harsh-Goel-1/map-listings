@@ -86,6 +86,53 @@ public class ListingService {
     }
 
     @Transactional
+    public Optional<ListingDTO> updateListing(Long id, CreateListingDTO dto) {
+        return listingRepository.findById(id).map(listing -> {
+            if (dto.getBhk() != null) {
+                double bhkVal = dto.getBhk();
+                if (bhkVal < 0.5 || (Math.round(bhkVal * 2.0) != bhkVal * 2.0)) {
+                    throw new IllegalArgumentException("BHK must be a multiple of 0.5 (e.g. 0.5, 1, 1.5, 2, 2.5, 3, 3.5)");
+                }
+            }
+
+            Point location = geometryFactory.createPoint(new Coordinate(dto.getLongitude(), dto.getLatitude()));
+
+            listing.setTitle(dto.getTitle());
+            listing.setPrice(dto.getPrice());
+            listing.setBhk(dto.getBhk());
+            listing.setAreaSqFt(dto.getAreaSqFt());
+            listing.setPropertyCategory(Listing.PropertyCategory.valueOf(dto.getPropertyCategory().toUpperCase()));
+            listing.setPropertyType(Listing.PropertyType.valueOf(dto.getPropertyType().toUpperCase()));
+            listing.setListingType(Listing.ListingType.valueOf(dto.getListingType().toUpperCase()));
+            listing.setProjectName(dto.getProjectName());
+            listing.setSocietyName(dto.getSocietyName());
+            listing.setAddress(dto.getAddress());
+            listing.setContactNumber(dto.getContactNumber());
+            listing.setDescription(dto.getDescription());
+            listing.setLocation(location);
+
+            // Update images
+            listing.getImages().clear();
+            if (dto.getImageUrls() != null) {
+                for (int i = 0; i < dto.getImageUrls().size(); i++) {
+                    String url = dto.getImageUrls().get(i);
+                    if (url != null && !url.isBlank()) {
+                        ListingImage image = ListingImage.builder()
+                                .listing(listing)
+                                .imageUrl(url.trim())
+                                .displayOrder(i)
+                                .build();
+                        listing.getImages().add(image);
+                    }
+                }
+            }
+
+            Listing updated = listingRepository.save(listing);
+            return toDTO(updated);
+        });
+    }
+
+    @Transactional
     public boolean deleteListing(Long id) {
         if (listingRepository.existsById(id)) {
             listingRepository.deleteById(id);

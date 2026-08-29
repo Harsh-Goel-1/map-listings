@@ -55,6 +55,13 @@ public class ListingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ListingDTO> updateListing(@PathVariable Long id, @Valid @RequestBody CreateListingDTO dto) {
+        return listingService.updateListing(id, dto)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteListing(@PathVariable Long id) {
         boolean deleted = listingService.deleteListing(id);
