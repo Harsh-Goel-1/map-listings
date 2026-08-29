@@ -1,0 +1,12 @@
+{
+  "name": "map-listings-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "cd backend && ./gradlew bootRun",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run start --prefix frontend"
+  }
+}

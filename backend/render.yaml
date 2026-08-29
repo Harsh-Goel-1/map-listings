@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: map-listings-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/listings
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USERNAME
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: "http://localhost:3000,https://*.vercel.app"
