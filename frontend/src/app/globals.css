@@ -1667,7 +1667,17 @@ img {
   cursor: crosshair;
 }
 
-/* Native MapControl Bar (Stays visible in fullscreen and on expand) */
+/* Floating In-Map Search Bar (Direct HTML overlay over map viewport) */
+.admin-map-search-float {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 380px;
+  max-width: calc(100% - 24px);
+  z-index: 50;
+  pointer-events: auto;
+}
+
 .admin-map-control-bar {
   margin: 10px;
   width: 400px;

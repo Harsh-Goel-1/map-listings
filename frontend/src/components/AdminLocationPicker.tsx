@@ -4,8 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Map,
   AdvancedMarker,
-  MapControl,
-  ControlPosition,
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
@@ -28,6 +26,14 @@ interface MapSearchResult {
   lng?: number;
   formattedAddress?: string;
   prediction?: any;
+}
+
+function extractText(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val.text === 'string') return val.text;
+  if (typeof val.toString === 'function') return val.toString();
+  return String(val);
 }
 
 // Controller to smoothly pan and zoom the map when coordinates change
@@ -56,7 +62,7 @@ function parseGoogleMapsInput(rawInput: string): {
 } {
   const input = rawInput.trim();
 
-  // Pattern 1: Direct coordinates e.g. "28.5355, 77.3910" or "28.5355 77.3910"
+  // Direct coordinates e.g. "28.5355, 77.3910" or "28.5355 77.3910"
   const directMatch = input.match(/^([-+]?\d{1,2}(?:\.\d+)?)\s*[, ]\s*([-+]?\d{1,3}(?:\.\d+)?)$/);
   if (directMatch) {
     const lat = parseFloat(directMatch[1]);
@@ -66,37 +72,37 @@ function parseGoogleMapsInput(rawInput: string): {
     }
   }
 
-  // Pattern 2: Shortened URL like maps.app.goo.gl or goo.gl/maps
+  // Shortened URL like maps.app.goo.gl or goo.gl/maps
   if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps')) {
     return { query: input, isShortLink: true, isLink: true };
   }
 
-  // Pattern 3: Google Maps URL with /@lat,lng,zoom
+  // Google Maps URL with /@lat,lng,zoom
   const atMatch = input.match(/@([-+]?\d{1,2}\.\d+),([-+]?\d{1,3}\.\d+)/);
   if (atMatch) {
     return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]), isLink: true };
   }
 
-  // Pattern 4: Protobuf coords in URL: !3d<lat>!4d<lng>
+  // Protobuf coords in URL: !3d<lat>!4d<lng>
   const protoMatch = input.match(/!3d([-+]?\d{1,2}\.\d+)!4d([-+]?\d{1,3}\.\d+)/);
   if (protoMatch) {
     return { lat: parseFloat(protoMatch[1]), lng: parseFloat(protoMatch[2]), isLink: true };
   }
 
-  // Pattern 5: URL params with q=lat,lng or ll=lat,lng
+  // URL params with q=lat,lng or ll=lat,lng
   const paramCoordMatch = input.match(/[?&](?:q|ll|daddr|saddr)=([-+]?\d{1,2}\.\d+),([-+]?\d{1,3}\.\d+)/);
   if (paramCoordMatch) {
     return { lat: parseFloat(paramCoordMatch[1]), lng: parseFloat(paramCoordMatch[2]), isLink: true };
   }
 
-  // Pattern 6: Google Maps Place URL: /maps/place/Place+Name/...
+  // Google Maps Place URL: /maps/place/Place+Name/...
   const placeMatch = input.match(/\/maps\/place\/([^/@?]+)/);
   if (placeMatch) {
     const query = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
     return { query, isLink: true };
   }
 
-  // Pattern 7: URL query param q=Place+Name
+  // URL query param q=Place+Name
   const queryParamMatch = input.match(/[?&]q=([^&]+)/);
   if (queryParamMatch) {
     const query = decodeURIComponent(queryParamMatch[1].replace(/\+/g, ' '));
@@ -139,16 +145,18 @@ export default function AdminLocationPicker({
   const [detectedAddress, setDetectedAddress] = useState<string | null>(null);
   const [targetZoom, setTargetZoom] = useState<number | undefined>(undefined);
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const searchWrapperRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionTokenRef = useRef<any>(null);
+
   const geocoding = useMapsLibrary('geocoding');
   const places = useMapsLibrary('places');
-  const sessionTokenRef = useRef<any>(null);
 
   // Close search dropdown on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
     }
@@ -172,7 +180,6 @@ export default function AdminLocationPicker({
           if (fallbackName) {
             onProjectSuggest?.(fallbackName);
           } else {
-            // Find establishment or sublocality
             const est = results.find(
               (r) =>
                 r.types.includes('establishment') ||
@@ -323,15 +330,15 @@ export default function AdminLocationPicker({
     }
   };
 
-  // In-map search query with Places API (New), local Noida matches, and Geocoding fallback
+  // In-map search query with Places API (New), instant local Noida database, and Geocoding fallback
   const searchPlaces = useCallback(
     async (input: string) => {
-      if (!input || input.trim().length < 1) {
+      const trimmed = input.trim();
+      if (!trimmed || trimmed.length < 1) {
         setSearchResults([]);
         return;
       }
 
-      const trimmed = input.trim();
       setSearching(true);
 
       // 1. Instant local Noida database matches
@@ -345,7 +352,13 @@ export default function AdminLocationPicker({
         formattedAddress: `${loc.name}, ${loc.secondary}`,
       }));
 
-      // 2. Try Places API (New) AutocompleteSuggestion
+      // Immediately show local matches if available
+      if (localResults.length > 0) {
+        setSearchResults(localResults);
+        setDropdownOpen(true);
+      }
+
+      // 2. Query Places API (New) AutocompleteSuggestion
       if (places && (places as any).AutocompleteSuggestion) {
         try {
           if (!sessionTokenRef.current && (places as any).AutocompleteSessionToken) {
@@ -355,12 +368,6 @@ export default function AdminLocationPicker({
           const request: any = {
             input: trimmed,
             includedRegionCodes: ['in'],
-            locationBias: {
-              circle: {
-                center: { lat: 28.5355, lng: 77.391 },
-                radius: 25000,
-              },
-            },
           };
           if (sessionTokenRef.current) {
             request.sessionToken = sessionTokenRef.current;
@@ -372,8 +379,8 @@ export default function AdminLocationPicker({
           if (rawSuggestions.length > 0) {
             const apiResults: MapSearchResult[] = rawSuggestions.slice(0, 5).map((s: any, idx: number) => {
               const pred = s.placePrediction;
-              const main = pred?.mainText?.text || pred?.text?.text || trimmed;
-              const secondary = pred?.secondaryText?.text;
+              const main = extractText(pred?.mainText) || extractText(pred?.text) || trimmed;
+              const secondary = extractText(pred?.secondaryText);
               return {
                 id: pred?.placeId || `pred-${idx}`,
                 mainText: main,
@@ -395,11 +402,11 @@ export default function AdminLocationPicker({
             return;
           }
         } catch (err) {
-          // Places API (New) error fallback
+          console.warn('Places API autocomplete error:', err);
         }
       }
 
-      // If local matches exist, show them
+      // If local matches exist, keep showing them
       if (localResults.length > 0) {
         setSearchResults(localResults);
         setSearching(false);
@@ -453,11 +460,10 @@ export default function AdminLocationPicker({
     setDropdownOpen(true);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchPlaces(val), 250);
+    debounceRef.current = setTimeout(() => searchPlaces(val), 200);
   };
 
   const handleSelectResult = async (result: MapSearchResult) => {
-    setSearchResults([]);
     setDropdownOpen(false);
     setSearchQuery(result.mainText);
 
@@ -636,7 +642,7 @@ export default function AdminLocationPicker({
         )}
       </div>
 
-      {/* ── 2. Interactive Map Container ── */}
+      {/* ── 2. Interactive Map Container with Floating Search Bar ── */}
       <div className="admin-map-box">
         <div className="admin-map-header">
           <div className="admin-map-instructions">
@@ -644,7 +650,7 @@ export default function AdminLocationPicker({
               <circle cx="12" cy="12" r="10" />
               <path d="m12 8 4 4-4 4M8 12h8" />
             </svg>
-            <span>Or click anywhere on the map to manually place/drag pin</span>
+            <span>Click anywhere on the map to pin, or search any place directly on the map</span>
           </div>
 
           <div className="admin-coord-pill">
@@ -656,6 +662,101 @@ export default function AdminLocationPicker({
         </div>
 
         <div className="admin-map-viewport">
+          {/* Floating Search Bar over Map (Direct HTML overlay, outside MapControl to prevent clipping) */}
+          <div className="admin-map-search-float" ref={searchWrapperRef}>
+            <div className="admin-map-search-input-wrap">
+              <svg
+                className="admin-map-search-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                id="admin-map-search"
+                type="text"
+                className="admin-map-search-input"
+                placeholder="Search sector, society, landmark on map…"
+                value={searchQuery}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onFocus={() => {
+                  if (searchResults.length > 0) setDropdownOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (searchResults.length > 0) {
+                      handleSelectResult(searchResults[0]);
+                    } else if (searchQuery.trim()) {
+                      searchPlaces(searchQuery);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setDropdownOpen(false);
+                  }
+                }}
+                autoComplete="off"
+              />
+              {searching && <span className="admin-map-search-spinner" />}
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="admin-map-search-clear"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setDropdownOpen(false);
+                    searchInputRef.current?.focus();
+                  }}
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown Suggestions List */}
+            {dropdownOpen && searchResults.length > 0 && (
+              <ul className="admin-map-search-dropdown">
+                {searchResults.map((item) => (
+                  <li
+                    key={item.id}
+                    className="admin-map-search-option"
+                    onMouseDown={(e) => {
+                      // Prevent blur from closing before selection completes
+                      e.preventDefault();
+                      handleSelectResult(item);
+                    }}
+                  >
+                    <svg
+                      className="admin-map-search-pin-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <div className="admin-map-search-option-text">
+                      <span className="admin-map-search-main">{item.mainText}</span>
+                      {item.secondaryText && (
+                        <span className="admin-map-search-sub">{item.secondaryText}</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <Map
             defaultCenter={{ lat: latitude || 28.5355, lng: longitude || 77.391 }}
             defaultZoom={14}
@@ -665,84 +766,6 @@ export default function AdminLocationPicker({
             onClick={handleMapClick}
           >
             <MapCenterController lat={latitude} lng={longitude} zoom={targetZoom} />
-
-            {/* In-Map Search Bar Control */}
-            <MapControl position={ControlPosition.TOP_LEFT}>
-              <div className="admin-map-control-bar" ref={wrapperRef}>
-                <div className="admin-map-search-input-wrap">
-                  <svg
-                    className="admin-map-search-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.3-4.3" />
-                  </svg>
-                  <input
-                    id="admin-map-search"
-                    type="text"
-                    className="admin-map-search-input"
-                    placeholder="Search place, sector, or landmark on map…"
-                    value={searchQuery}
-                    onChange={(e) => handleInputChange(e.target.value)}
-                    onFocus={() => {
-                      if (searchResults.length > 0) setDropdownOpen(true);
-                    }}
-                    autoComplete="off"
-                  />
-                  {searching && <span className="admin-map-search-spinner" />}
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      className="admin-map-search-clear"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setSearchResults([]);
-                        setDropdownOpen(false);
-                      }}
-                      aria-label="Clear search"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {dropdownOpen && searchResults.length > 0 && (
-                  <ul className="admin-map-search-dropdown">
-                    {searchResults.map((item) => (
-                      <li
-                        key={item.id}
-                        className="admin-map-search-option"
-                        onClick={() => handleSelectResult(item)}
-                      >
-                        <svg
-                          className="admin-map-search-pin-icon"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                          <circle cx="12" cy="10" r="3" />
-                        </svg>
-                        <div className="admin-map-search-option-text">
-                          <span className="admin-map-search-main">{item.mainText}</span>
-                          {item.secondaryText && (
-                            <span className="admin-map-search-sub">{item.secondaryText}</span>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </MapControl>
 
             <AdvancedMarker
               position={{ lat: latitude || 28.5355, lng: longitude || 77.391 }}
