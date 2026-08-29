@@ -78,6 +78,20 @@ public class ListingService {
         return toDTO(saved);
     }
 
+    @Transactional
+    public boolean deleteListing(Long id) {
+        if (listingRepository.existsById(id)) {
+            listingRepository.deleteById(id);
+            return true;
+        }
+        return false;
+    }
+
+    @Transactional
+    public void deleteAllListings() {
+        listingRepository.deleteAll();
+    }
+
     private Specification<Listing> buildSpecification(ListingFilterDTO filter) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
