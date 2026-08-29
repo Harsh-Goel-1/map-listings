@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Map,
   AdvancedMarker,
@@ -8,7 +8,7 @@ import {
   useMap,
 } from '@vis.gl/react-google-maps';
 import { Listing } from '@/types/listing';
-import PropertyCard from './PropertyCard';
+import PropertyCard, { formatPrice } from './PropertyCard';
 import { SearchedArea } from './LocationSearch';
 
 interface MapViewProps {
@@ -20,17 +20,33 @@ interface MapViewProps {
   onHoverListing: (id: number | null) => void;
 }
 
+interface LocationGroup {
+  key: string;
+  lat: number;
+  lng: number;
+  listings: Listing[];
+}
+
 // Noida Center coordinates
 const NOIDA_CENTER = { lat: 28.5355, lng: 77.391 };
 
 function formatMarkerPrice(price: number, listingType: string): string {
   if (listingType === 'RENT') {
-    if (price >= 100000) return `₹${(price / 100000).toFixed(1)}L/m`;
+    if (price >= 100000) {
+      const val = price / 100000;
+      return `₹${val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '')}L/m`;
+    }
     if (price >= 1000) return `₹${(price / 1000).toFixed(0)}K/m`;
     return `₹${price}/m`;
   }
-  if (price >= 10000000) return `₹${(price / 10000000).toFixed(1)}Cr`;
-  if (price >= 100000) return `₹${(price / 100000).toFixed(1)}L`;
+  if (price >= 10000000) {
+    const val = price / 10000000;
+    return `₹${val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '')}Cr`;
+  }
+  if (price >= 100000) {
+    const val = price / 100000;
+    return `₹${val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '')}L`;
+  }
   return `₹${price.toLocaleString('en-IN')}`;
 }
 
@@ -132,12 +148,51 @@ export default function MapView({
   onSelectListing,
   onHoverListing,
 }: MapViewProps) {
-  const [activeWindowListing, setActiveWindowListing] = useState<Listing | null>(null);
+  const [activeGroup, setActiveGroup] = useState<LocationGroup | null>(null);
 
-  // Sync active info window with selected listing from list or pin
+  // Group listings that share identical or near-identical coordinates (< 15 meters)
+  const locationGroups = useMemo(() => {
+    const groups: LocationGroup[] = [];
+
+    listings.forEach((listing) => {
+      if (!listing.latitude || !listing.longitude) return;
+      const existing = groups.find(
+        (g) =>
+          Math.abs(g.lat - listing.latitude) < 0.00015 &&
+          Math.abs(g.lng - listing.longitude) < 0.00015
+      );
+
+      if (existing) {
+        existing.listings.push(listing);
+      } else {
+        groups.push({
+          key: `${listing.latitude.toFixed(5)},${listing.longitude.toFixed(5)}`,
+          lat: listing.latitude,
+          lng: listing.longitude,
+          listings: [listing],
+        });
+      }
+    });
+
+    // Sort units in each group by price ascending
+    groups.forEach((g) => {
+      g.listings.sort((a, b) => a.price - b.price);
+    });
+
+    return groups;
+  }, [listings]);
+
+  // Sync active group window when selectedListing changes from left cards
   useEffect(() => {
-    setActiveWindowListing(selectedListing);
-  }, [selectedListing]);
+    if (selectedListing) {
+      const match = locationGroups.find((g) =>
+        g.listings.some((l) => l.id === selectedListing.id)
+      );
+      if (match) {
+        setActiveGroup(match);
+      }
+    }
+  }, [selectedListing, locationGroups]);
 
   return (
     <div className="map-container" id="map-view">
@@ -148,7 +203,7 @@ export default function MapView({
         disableDefaultUI={false}
         mapId="noida-real-estate-map"
         onClick={() => {
-          setActiveWindowListing(null);
+          setActiveGroup(null);
           onSelectListing(null);
         }}
       >
@@ -179,56 +234,150 @@ export default function MapView({
           </AdvancedMarker>
         )}
 
-        {listings.map((listing) => {
-          const isHovered = hoveredId === listing.id;
-          const isSelected = selectedListing?.id === listing.id;
+        {locationGroups.map((group) => {
+          const isGroup = group.listings.length > 1;
+          const isHovered = group.listings.some((l) => l.id === hoveredId);
+          const isSelected = group.listings.some((l) => l.id === selectedListing?.id);
+          const minListing = group.listings[0];
 
           return (
             <AdvancedMarker
-              key={listing.id}
-              position={{ lat: listing.latitude, lng: listing.longitude }}
+              key={group.key}
+              position={{ lat: group.lat, lng: group.lng }}
               onClick={() => {
-                onSelectListing(listing);
-                setActiveWindowListing(listing);
+                setActiveGroup(group);
+                if (group.listings.length === 1) {
+                  onSelectListing(group.listings[0]);
+                } else if (!group.listings.some((l) => l.id === selectedListing?.id)) {
+                  onSelectListing(group.listings[0]);
+                }
               }}
-              title={listing.title}
+              title={
+                isGroup
+                  ? `${group.listings.length} listings at ${minListing.projectName || minListing.address || 'location'}`
+                  : minListing.title
+              }
             >
               <div
                 className={`map-marker-price ${isHovered ? 'hovered' : ''} ${
                   isSelected ? 'selected' : ''
                 }`}
-                onMouseEnter={() => onHoverListing(listing.id)}
+                onMouseEnter={() => onHoverListing(minListing.id)}
                 onMouseLeave={() => onHoverListing(null)}
               >
-                {formatMarkerPrice(listing.price, listing.listingType)}
+                <span>{formatMarkerPrice(minListing.price, minListing.listingType)}</span>
+                {isGroup && (
+                  <span className="map-marker-count-pill">
+                    {group.listings.length}
+                  </span>
+                )}
               </div>
             </AdvancedMarker>
           );
         })}
 
-        {activeWindowListing && (
+        {activeGroup && (
           <InfoWindow
             position={{
-              lat: activeWindowListing.latitude,
-              lng: activeWindowListing.longitude,
+              lat: activeGroup.lat,
+              lng: activeGroup.lng,
             }}
             onCloseClick={() => {
-              setActiveWindowListing(null);
+              setActiveGroup(null);
               onSelectListing(null);
             }}
             headerDisabled={true}
           >
-            <div className="info-window-content">
-              <PropertyCard
-                listing={activeWindowListing}
-                compact={true}
-                onClick={() => {}}
-                onClose={() => {
-                  setActiveWindowListing(null);
-                  onSelectListing(null);
-                }}
-              />
-            </div>
+            {activeGroup.listings.length === 1 ? (
+              <div className="info-window-content">
+                <PropertyCard
+                  listing={activeGroup.listings[0]}
+                  compact={true}
+                  onClick={() => {}}
+                  onClose={() => {
+                    setActiveGroup(null);
+                    onSelectListing(null);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="map-group-window">
+                <div className="map-group-header">
+                  <div className="map-group-title-wrap">
+                    <h4 className="map-group-title">
+                      {activeGroup.listings[0].projectName ||
+                        activeGroup.listings[0].societyName ||
+                        activeGroup.listings[0].title}
+                    </h4>
+                    <span className="map-group-subtitle">
+                      {activeGroup.listings.length} units at this location
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="map-group-close"
+                    onClick={() => {
+                      setActiveGroup(null);
+                      onSelectListing(null);
+                    }}
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="map-group-items-list">
+                  {activeGroup.listings.map((item) => {
+                    const isItemActive = selectedListing?.id === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`map-group-item ${isItemActive ? 'active' : ''}`}
+                        onClick={() => onSelectListing(item)}
+                      >
+                        {item.imageUrls && item.imageUrls.length > 0 ? (
+                          <img
+                            src={item.imageUrls[0]}
+                            alt={item.title}
+                            className="map-group-thumb"
+                          />
+                        ) : (
+                          <div className="map-group-thumb-placeholder">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              width="18"
+                              height="18"
+                            >
+                              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            </svg>
+                          </div>
+                        )}
+
+                        <div className="map-group-item-info">
+                          <div className="map-group-item-top">
+                            <span className="map-group-item-bhk">
+                              {item.bhk > 0 ? `${item.bhk} BHK` : item.propertyType}
+                            </span>
+                            <span className="map-group-item-price">
+                              {formatPrice(item.price, item.listingType)}
+                            </span>
+                          </div>
+                          <div className="map-group-item-sub">
+                            {item.areaSqFt > 0 && (
+                              <span>{item.areaSqFt.toLocaleString('en-IN')} sq ft</span>
+                            )}
+                            {item.title && <span> • {item.title}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </InfoWindow>
         )}
       </Map>

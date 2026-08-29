@@ -13,14 +13,30 @@ interface PropertyCardProps {
   onClose?: () => void;
 }
 
-function formatPrice(price: number, listingType: string): string {
+export function formatPrice(price: number, listingType?: string): string {
   if (listingType === 'RENT') {
-    if (price >= 100000) return `₹${(price / 100000).toFixed(1)}L`;
-    if (price >= 1000) return `₹${(price / 1000).toFixed(0)}K`;
-    return `₹${price}`;
+    if (price >= 100000) {
+      const val = price / 100000;
+      const formatted = val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '');
+      return `₹${formatted} L/m`;
+    }
+    if (price >= 1000) {
+      const val = price / 1000;
+      const formatted = val % 1 === 0 ? val.toFixed(0) : val.toFixed(1).replace(/\.?0+$/, '');
+      return `₹${formatted}K/m`;
+    }
+    return `₹${price.toLocaleString('en-IN')}/m`;
   }
-  if (price >= 10000000) return `₹${(price / 10000000).toFixed(1)}Cr`;
-  if (price >= 100000) return `₹${(price / 100000).toFixed(1)}L`;
+  if (price >= 10000000) {
+    const val = price / 10000000;
+    const formatted = val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '');
+    return `₹${formatted} Cr`;
+  }
+  if (price >= 100000) {
+    const val = price / 100000;
+    const formatted = val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '');
+    return `₹${formatted} L`;
+  }
   return `₹${price.toLocaleString('en-IN')}`;
 }
 
