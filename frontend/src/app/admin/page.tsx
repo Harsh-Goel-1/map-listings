@@ -101,7 +101,19 @@ const INITIAL_FORM: FormState = {
 };
 
 export default function AdminPage() {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('admin_auth') === 'true';
+    }
+    return false;
+  });
+
+  const handleAuthSuccess = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('admin_auth', 'true');
+    }
+    setAuthenticated(true);
+  };
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -139,10 +151,6 @@ export default function AdminPage() {
       loadListings();
     }
   }, [authenticated, loadListings]);
-
-  if (!authenticated) {
-    return <PasswordGate onAuth={() => setAuthenticated(true)} />;
-  }
 
   const activeSubtypes =
     form.propertyCategory === 'COMMERCIAL' ? COMMERCIAL_SUBTYPES : RESIDENTIAL_SUBTYPES;
@@ -341,6 +349,10 @@ export default function AdminPage() {
       setSubmitting(false);
     }
   };
+
+  if (!authenticated) {
+    return <PasswordGate onAuth={handleAuthSuccess} />;
+  }
 
   return (
     <div className="admin-page">
