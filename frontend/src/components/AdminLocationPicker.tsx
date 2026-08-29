@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Map,
   AdvancedMarker,
+  MapControl,
+  ControlPosition,
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
@@ -144,7 +146,9 @@ export default function AdminLocationPicker({
   const [showManualCoords, setShowManualCoords] = useState(false);
   const [detectedAddress, setDetectedAddress] = useState<string | null>(null);
   const [targetZoom, setTargetZoom] = useState<number | undefined>(undefined);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const mapBoxRef = useRef<HTMLDivElement>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -152,6 +156,27 @@ export default function AdminLocationPicker({
 
   const geocoding = useMapsLibrary('geocoding');
   const places = useMapsLibrary('places');
+
+  // Track browser fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (mapBoxRef.current?.requestFullscreen) {
+        mapBoxRef.current.requestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   // Close search dropdown on outside click
   useEffect(() => {
@@ -642,8 +667,8 @@ export default function AdminLocationPicker({
         )}
       </div>
 
-      {/* ── 2. Interactive Map Container with Floating Search Bar ── */}
-      <div className="admin-map-box">
+      {/* ── 2. Interactive Map Container with Search Bar (Visible in Normal & Fullscreen) ── */}
+      <div className="admin-map-box" ref={mapBoxRef}>
         <div className="admin-map-header">
           <div className="admin-map-instructions">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
@@ -653,110 +678,40 @@ export default function AdminLocationPicker({
             <span>Click anywhere on the map to pin, or search any place directly on the map</span>
           </div>
 
-          <div className="admin-coord-pill">
-            <span className="admin-coord-dot" />
-            <span>
-              {latitude ? latitude.toFixed(5) : '28.53550'}, {longitude ? longitude.toFixed(5) : '77.39100'}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="admin-coord-pill">
+              <span className="admin-coord-dot" />
+              <span>
+                {latitude ? latitude.toFixed(5) : '28.53550'}, {longitude ? longitude.toFixed(5) : '77.39100'}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="admin-fullscreen-btn"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Map'}
+            >
+              {isFullscreen ? (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                  </svg>
+                  <span>Exit Fullscreen</span>
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                  </svg>
+                  <span>Fullscreen</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
         <div className="admin-map-viewport">
-          {/* Floating Search Bar over Map (Direct HTML overlay, outside MapControl to prevent clipping) */}
-          <div className="admin-map-search-float" ref={searchWrapperRef}>
-            <div className="admin-map-search-input-wrap">
-              <svg
-                className="admin-map-search-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                ref={searchInputRef}
-                id="admin-map-search"
-                type="text"
-                className="admin-map-search-input"
-                placeholder="Search sector, society, landmark on map…"
-                value={searchQuery}
-                onChange={(e) => handleInputChange(e.target.value)}
-                onFocus={() => {
-                  if (searchResults.length > 0) setDropdownOpen(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (searchResults.length > 0) {
-                      handleSelectResult(searchResults[0]);
-                    } else if (searchQuery.trim()) {
-                      searchPlaces(searchQuery);
-                    }
-                  } else if (e.key === 'Escape') {
-                    setDropdownOpen(false);
-                  }
-                }}
-                autoComplete="off"
-              />
-              {searching && <span className="admin-map-search-spinner" />}
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="admin-map-search-clear"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSearchResults([]);
-                    setDropdownOpen(false);
-                    searchInputRef.current?.focus();
-                  }}
-                  aria-label="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Dropdown Suggestions List */}
-            {dropdownOpen && searchResults.length > 0 && (
-              <ul className="admin-map-search-dropdown">
-                {searchResults.map((item) => (
-                  <li
-                    key={item.id}
-                    className="admin-map-search-option"
-                    onMouseDown={(e) => {
-                      // Prevent blur from closing before selection completes
-                      e.preventDefault();
-                      handleSelectResult(item);
-                    }}
-                  >
-                    <svg
-                      className="admin-map-search-pin-icon"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    <div className="admin-map-search-option-text">
-                      <span className="admin-map-search-main">{item.mainText}</span>
-                      {item.secondaryText && (
-                        <span className="admin-map-search-sub">{item.secondaryText}</span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
           <Map
             defaultCenter={{ lat: latitude || 28.5355, lng: longitude || 77.391 }}
             defaultZoom={14}
@@ -766,6 +721,115 @@ export default function AdminLocationPicker({
             onClick={handleMapClick}
           >
             <MapCenterController lat={latitude} lng={longitude} zoom={targetZoom} />
+
+            {/* Native MapControl: Renders inside Google Maps DOM, guaranteed to stay visible in Fullscreen */}
+            <MapControl position={ControlPosition.TOP_LEFT}>
+              <div
+                className="admin-map-control-bar"
+                ref={searchWrapperRef}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
+                <div className="admin-map-search-input-wrap">
+                  <svg
+                    className="admin-map-search-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    id="admin-map-search"
+                    type="text"
+                    className="admin-map-search-input"
+                    placeholder="Search sector, society, landmark on map…"
+                    value={searchQuery}
+                    onChange={(e) => handleInputChange(e.target.value)}
+                    onFocus={() => {
+                      if (searchResults.length > 0) setDropdownOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (searchResults.length > 0) {
+                          handleSelectResult(searchResults[0]);
+                        } else if (searchQuery.trim()) {
+                          searchPlaces(searchQuery);
+                        }
+                      } else if (e.key === 'Escape') {
+                        setDropdownOpen(false);
+                      }
+                    }}
+                    autoComplete="off"
+                  />
+                  {searching && <span className="admin-map-search-spinner" />}
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="admin-map-search-clear"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSearchResults([]);
+                        setDropdownOpen(false);
+                        searchInputRef.current?.focus();
+                      }}
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown Suggestions List */}
+                {dropdownOpen && searchResults.length > 0 && (
+                  <ul
+                    className="admin-map-search-dropdown"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                  >
+                    {searchResults.map((item) => (
+                      <li
+                        key={item.id}
+                        className="admin-map-search-option"
+                        onMouseDown={(e) => {
+                          // Prevent blur from closing before selection completes
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleSelectResult(item);
+                        }}
+                      >
+                        <svg
+                          className="admin-map-search-pin-icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                        <div className="admin-map-search-option-text">
+                          <span className="admin-map-search-main">{item.mainText}</span>
+                          {item.secondaryText && (
+                            <span className="admin-map-search-sub">{item.secondaryText}</span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </MapControl>
 
             <AdvancedMarker
               position={{ lat: latitude || 28.5355, lng: longitude || 77.391 }}
