@@ -201,6 +201,25 @@ img {
   letter-spacing: -0.24px;
 }
 
+.header-admin-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  padding: 6px 14px;
+  border-radius: var(--rounded-md);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.header-admin-btn:hover {
+  background: #333333;
+  transform: translateY(-1px);
+}
+
 /* ═══════════════════════════════════════════════════════════════
    Filter Bar
    ═══════════════════════════════════════════════════════════════ */

@@ -1,4 +1,4 @@
-'use client';
+import Link from 'next/link';
 
 export default function Header() {
   return (
@@ -15,6 +15,9 @@ export default function Header() {
       </div>
       <div className="header-right">
         <span className="header-badge">Noida · NCR</span>
+        <Link href="/admin" className="header-admin-btn">
+          + Add Property
+        </Link>
       </div>
     </header>
   );
