@@ -6,6 +6,8 @@ node_modules/
 # Next.js build output
 frontend/.next/
 frontend/out/
+.vercel/
+frontend/.vercel/
 
 # Environment files with secrets
 .env*.local
