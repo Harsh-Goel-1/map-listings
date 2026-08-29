@@ -230,7 +230,7 @@ public class DataSeeder implements CommandLineRunner {
         log.info("Successfully seeded {} listings (Residential & Commercial).", listings.size());
     }
 
-    private Listing createListing(String title, BigDecimal price, int bhk, int areaSqFt,
+    private Listing createListing(String title, BigDecimal price, double bhk, int areaSqFt,
                                    PropertyCategory propertyCategory, PropertyType propertyType,
                                    ListingType listingType,
                                    String projectName, String societyName, String address,

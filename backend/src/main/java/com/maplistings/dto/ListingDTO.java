@@ -14,7 +14,7 @@ public class ListingDTO {
     private Long id;
     private String title;
     private BigDecimal price;
-    private Integer bhk;
+    private Double bhk;
     private Integer areaSqFt;
     private String propertyCategory;
     private String propertyType;

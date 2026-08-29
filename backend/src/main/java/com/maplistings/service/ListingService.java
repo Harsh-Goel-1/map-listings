@@ -41,6 +41,13 @@ public class ListingService {
 
     @Transactional
     public ListingDTO createListing(CreateListingDTO dto) {
+        if (dto.getBhk() != null) {
+            double bhkVal = dto.getBhk();
+            if (bhkVal < 0.5 || (Math.round(bhkVal * 2.0) != bhkVal * 2.0)) {
+                throw new IllegalArgumentException("BHK must be a multiple of 0.5 (e.g. 0.5, 1, 1.5, 2, 2.5, 3, 3.5)");
+            }
+        }
+
         Point location = geometryFactory.createPoint(new Coordinate(dto.getLongitude(), dto.getLatitude()));
 
         Listing listing = Listing.builder()

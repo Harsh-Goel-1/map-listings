@@ -221,6 +221,12 @@ export default function AdminPage() {
     setSuccess(null);
 
     try {
+      if (!form.bhk || form.bhk < 0.5 || (form.bhk * 2) % 1 !== 0) {
+        setError('BHK must be a multiple of 0.5 (e.g. 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4)');
+        setSubmitting(false);
+        return;
+      }
+
       const { imageUrlDraft, ...payload } = form;
       const created = await createListing(payload);
       setSuccess(`Listing "${created.title}" created successfully (ID: ${created.id})`);
@@ -300,17 +306,39 @@ export default function AdminPage() {
           </div>
           <div className="admin-grid-3">
             <div className="admin-field">
-              <label className="admin-label" htmlFor="bhk">BHK <span className="required">*</span></label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="admin-label" htmlFor="bhk">
+                  BHK <span className="required">*</span>
+                </label>
+                <span style={{ fontSize: '11px', color: 'var(--color-mute)' }}>Step: 0.5 (e.g. 2.5, 3.5)</span>
+              </div>
               <input
                 id="bhk"
                 type="number"
+                step="0.5"
+                min="0.5"
+                max="20"
                 className="admin-input"
-                value={form.bhk}
-                onChange={(e) => updateField('bhk', Number(e.target.value))}
-                min={1}
-                max={10}
+                value={form.bhk || ''}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  updateField('bhk', isNaN(val) ? 0 : val);
+                }}
+                placeholder="e.g. 2.5"
                 required
               />
+              <div className="admin-bhk-chips">
+                {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    className={`admin-bhk-chip ${form.bhk === val ? 'active' : ''}`}
+                    onClick={() => updateField('bhk', val)}
+                  >
+                    {val}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="admin-field">
               <label className="admin-label" htmlFor="areaSqFt">Area (sq ft) <span className="required">*</span></label>

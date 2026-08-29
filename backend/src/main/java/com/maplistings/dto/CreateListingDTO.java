@@ -21,8 +21,8 @@ public class CreateListingDTO {
     private BigDecimal price;
 
     @NotNull(message = "BHK is required")
-    @Min(value = 1, message = "BHK must be at least 1")
-    private Integer bhk;
+    @DecimalMin(value = "0.5", message = "BHK must be at least 0.5")
+    private Double bhk;
 
     @NotNull(message = "Area is required")
     @Min(value = 1, message = "Area must be at least 1 sq ft")

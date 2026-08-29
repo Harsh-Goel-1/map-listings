@@ -30,7 +30,7 @@ const ALL_SUBTYPES: { value: PropertyType; label: string }[] = [
   ...COMMERCIAL_SUBTYPES,
 ];
 
-const BHK_OPTIONS = [1, 2, 3, 4];
+const BHK_OPTIONS = [1, 2, 2.5, 3, 3.5, 4];
 
 const PRICE_RANGES_BUY = [
   { label: 'No Min', value: undefined },

@@ -29,7 +29,7 @@ public class Listing {
     private BigDecimal price;
 
     @Column(nullable = false)
-    private Integer bhk;
+    private Double bhk;
 
     @Column(nullable = false)
     private Integer areaSqFt;

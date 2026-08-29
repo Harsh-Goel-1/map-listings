@@ -466,6 +466,37 @@ img {
 }
 
 /* BHK Chips */
+.admin-bhk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.admin-bhk-chip {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--rounded-pill);
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas);
+  color: var(--color-body);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.admin-bhk-chip:hover {
+  border-color: var(--color-hairline-strong);
+  color: var(--color-ink);
+  background: var(--color-canvas-soft);
+}
+
+.admin-bhk-chip.active {
+  background: var(--color-ink);
+  color: var(--color-canvas);
+  border-color: var(--color-ink);
+}
+
 .chip-group {
   display: flex;
   gap: 4px;

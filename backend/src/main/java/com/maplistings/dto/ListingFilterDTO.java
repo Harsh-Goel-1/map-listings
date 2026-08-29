@@ -14,7 +14,7 @@ public class ListingFilterDTO {
     private String listingType;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
-    private List<Integer> bhk;
+    private List<Double> bhk;
     private String propertyCategory;
     private String propertyType;
 }

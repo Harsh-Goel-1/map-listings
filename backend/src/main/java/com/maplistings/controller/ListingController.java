@@ -25,7 +25,7 @@ public class ListingController {
             @RequestParam(required = false) String listingType,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) List<Integer> bhk,
+            @RequestParam(required = false) List<Double> bhk,
             @RequestParam(required = false) String propertyCategory,
             @RequestParam(required = false) String propertyType
     ) {
