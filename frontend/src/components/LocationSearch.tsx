@@ -115,7 +115,13 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
         }),
       }));
 
-      // 2. Try modern Places API (New) AutocompleteSuggestion if available
+      // Immediately show local matches so user never experiences lag
+      if (localItems.length > 0) {
+        setSuggestions(localItems);
+        setOpen(true);
+      }
+
+      // 2. Query modern Places API (New) AutocompleteSuggestion
       if (places && (places as any).AutocompleteSuggestion) {
         try {
           if (!sessionTokenRef.current && (places as any).AutocompleteSessionToken) {
@@ -126,10 +132,8 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
             input: trimmed,
             includedRegionCodes: ['in'],
             locationBias: {
-              circle: {
-                center: { lat: 28.5355, lng: 77.391 },
-                radius: 25000,
-              },
+              center: { lat: 28.5355, lng: 77.391 },
+              radius: 25000,
             },
           };
           if (sessionTokenRef.current) {
@@ -140,7 +144,7 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
           const rawSuggestions = response?.suggestions || [];
 
           if (rawSuggestions.length > 0) {
-            const apiItems: SuggestionItem[] = rawSuggestions.slice(0, 5).map((s: any, idx: number) => {
+            const apiItems: SuggestionItem[] = rawSuggestions.slice(0, 6).map((s: any, idx: number) => {
               const pred = s.placePrediction;
               const main = extractText(pred?.mainText) || extractText(pred?.text) || trimmed;
               const secondary = extractText(pred?.secondaryText);
@@ -175,11 +179,12 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
                 combined.push(locItem);
               }
             }
-            setSuggestions(combined.slice(0, 6));
+            setSuggestions(combined.slice(0, 7));
+            setOpen(true);
             return;
           }
         } catch (err) {
-          // Places API (New) might be disabled in Google Console - seamlessly continue with local + geocoder
+          console.warn('Places API autocomplete error in consumer search:', err);
         }
       }
 
@@ -239,7 +244,7 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
     setOpen(true);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 250);
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 180);
   };
 
   const handleSelect = async (item: SuggestionItem) => {
@@ -381,7 +386,10 @@ export default function LocationSearch({ onAreaSelected, activeArea }: LocationS
             <li
               key={item.id}
               className="location-search-option"
-              onClick={() => handleSelect(item)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(item);
+              }}
             >
               <svg
                 className="location-search-option-icon"
