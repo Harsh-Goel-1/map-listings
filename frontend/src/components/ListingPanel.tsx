@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Listing } from '@/types/listing';
 import PropertyCard from './PropertyCard';
 
@@ -41,10 +42,13 @@ export default function ListingPanel({
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
-            <div className="empty-state-title">No properties found.</div>
+            <div className="empty-state-title">No properties listed yet</div>
             <div className="empty-state-text">
-              Try adjusting your filters to see more results.
+              Be the first to list a property or add one from the admin portal.
             </div>
+            <Link href="/admin" className="header-admin-btn" style={{ marginTop: '14px', display: 'inline-flex' }}>
+              + Add First Property
+            </Link>
           </div>
         ) : (
           listings.map((listing) => (
