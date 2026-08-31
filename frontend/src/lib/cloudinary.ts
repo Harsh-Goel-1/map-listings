@@ -16,8 +16,13 @@ export async function uploadImageToCloudinary(
   file: File,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'iglsq1qi';
+  let uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'map_listings';
+
+  // If the old UUID preset is configured, fallback to the valid unsigned preset
+  if (!uploadPreset || uploadPreset.includes('940d70bc')) {
+    uploadPreset = 'map_listings';
+  }
 
   if (!cloudName || !uploadPreset) {
     throw new Error(

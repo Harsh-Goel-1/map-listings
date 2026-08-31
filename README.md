@@ -25,7 +25,7 @@ A full-stack, map-first real estate listings platform built with Next.js, Spring
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Google Maps JS API key |
 | `NEXT_PUBLIC_API_URL` | Render backend URL (`https://<service>.onrender.com`) |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | `iglsq1qi` |
-| `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`| `940d70bc-09e9-4017-b7da-2d95e716348c` (Unsigned) |
+| `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`| `map_listings` (Unsigned) |
 
 ### 2. Backend (Render Dashboard > Environment)
 | Variable | Value / Purpose |
