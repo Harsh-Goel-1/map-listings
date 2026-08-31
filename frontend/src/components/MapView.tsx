@@ -151,28 +151,33 @@ export default function MapView({
   const [activeGroup, setActiveGroup] = useState<LocationGroup | null>(null);
 
   // Group listings that share identical or near-identical coordinates (< 15 meters)
+  // Uses O(n) spatial grid hashing instead of O(n²) linear scan
   const locationGroups = useMemo(() => {
-    const groups: LocationGroup[] = [];
+    const gridSize = 0.00015; // ~15 meters
+    const gridMap: Record<string, LocationGroup> = {};
 
     listings.forEach((listing) => {
       if (!listing.latitude || !listing.longitude) return;
-      const existing = groups.find(
-        (g) =>
-          Math.abs(g.lat - listing.latitude) < 0.00015 &&
-          Math.abs(g.lng - listing.longitude) < 0.00015
-      );
 
+      // Quantize to grid cell
+      const cellLat = Math.round(listing.latitude / gridSize);
+      const cellLng = Math.round(listing.longitude / gridSize);
+      const cellKey = `${cellLat},${cellLng}`;
+
+      const existing = gridMap[cellKey];
       if (existing) {
         existing.listings.push(listing);
       } else {
-        groups.push({
+        gridMap[cellKey] = {
           key: `${listing.latitude.toFixed(5)},${listing.longitude.toFixed(5)}`,
           lat: listing.latitude,
           lng: listing.longitude,
           listings: [listing],
-        });
+        };
       }
     });
+
+    const groups = Object.values(gridMap);
 
     // Sort units in each group by price ascending
     groups.forEach((g) => {
@@ -259,18 +264,21 @@ export default function MapView({
               }
             >
               <div
-                className={`map-marker-price ${isHovered ? 'hovered' : ''} ${
+                className={`map-marker-pin ${isHovered ? 'hovered' : ''} ${
                   isSelected ? 'selected' : ''
                 }`}
                 onMouseEnter={() => onHoverListing(minListing.id)}
                 onMouseLeave={() => onHoverListing(null)}
               >
-                <span>{formatMarkerPrice(minListing.price, minListing.listingType)}</span>
-                {isGroup && (
-                  <span className="map-marker-count-pill">
-                    {group.listings.length}
-                  </span>
-                )}
+                <div className="map-marker-price">
+                  <span>{formatMarkerPrice(minListing.price, minListing.listingType)}</span>
+                  {isGroup && (
+                    <span className="map-marker-count-pill">
+                      {group.listings.length}
+                    </span>
+                  )}
+                </div>
+                <div className="map-marker-pointer" />
               </div>
             </AdvancedMarker>
           );

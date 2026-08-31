@@ -67,7 +67,7 @@ public class Listing {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
     @Builder.Default
     private List<ListingImage> images = new ArrayList<>();

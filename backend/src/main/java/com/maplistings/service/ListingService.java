@@ -32,7 +32,9 @@ public class ListingService {
     public List<ListingDTO> getListings(ListingFilterDTO filter) {
         Specification<Listing> spec = buildSpecification(filter);
         List<Listing> listings = listingRepository.findAll(spec);
-        return listings.stream().map(this::toDTO).collect(Collectors.toList());
+        // Deduplicate: EntityGraph LEFT JOIN can produce duplicate Listing rows (one per image)
+        List<Listing> unique = new ArrayList<>(new java.util.LinkedHashSet<>(listings));
+        return unique.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
     public Optional<ListingDTO> getListingById(Long id) {

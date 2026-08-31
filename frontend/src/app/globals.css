@@ -902,6 +902,16 @@ img {
   font-family: var(--font-sans);
 }
 
+/* Map marker pin wrapper – holds price pill + pointer triangle */
+.map-marker-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.22));
+}
+
 .map-marker-price {
   background: var(--color-canvas);
   color: var(--color-ink);
@@ -909,15 +919,39 @@ img {
   border-radius: var(--rounded-pill);
   font-size: 12px;
   font-weight: 600;
-  box-shadow: var(--shadow-lg);
-  cursor: pointer;
-  transition: all 0.15s ease;
   white-space: nowrap;
   border: 1px solid var(--color-hairline);
   letter-spacing: -0.24px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Pointer triangle */
+.map-marker-pointer {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid var(--color-canvas);
+  margin-top: -1px; /* overlap the pill border */
+  transition: border-top-color 0.15s ease;
+  position: relative;
+}
+/* Pointer border effect: use a pseudo-element behind to fake the 1px border */
+.map-marker-pointer::before {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: -7px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 8px solid var(--color-hairline);
+  z-index: -1;
+  transition: border-top-color 0.15s ease;
 }
 
 .map-marker-count-pill {
@@ -933,17 +967,34 @@ img {
   line-height: 1.3;
 }
 
-.map-marker-price:hover,
-.map-marker-price.hovered,
-.map-marker-price.selected {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
+/* Hover & selected states on the pin wrapper */
+.map-marker-pin:hover,
+.map-marker-pin.hovered,
+.map-marker-pin.selected {
   transform: scale(1.08);
 }
 
-.map-marker-price:hover .map-marker-count-pill,
-.map-marker-price.selected .map-marker-count-pill {
+.map-marker-pin:hover .map-marker-price,
+.map-marker-pin.hovered .map-marker-price,
+.map-marker-pin.selected .map-marker-price {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+.map-marker-pin:hover .map-marker-pointer,
+.map-marker-pin.hovered .map-marker-pointer,
+.map-marker-pin.selected .map-marker-pointer {
+  border-top-color: var(--color-primary);
+}
+.map-marker-pin:hover .map-marker-pointer::before,
+.map-marker-pin.hovered .map-marker-pointer::before,
+.map-marker-pin.selected .map-marker-pointer::before {
+  border-top-color: var(--color-primary);
+}
+
+.map-marker-pin:hover .map-marker-count-pill,
+.map-marker-pin.selected .map-marker-count-pill {
   background: #ffffff;
   color: var(--color-ink);
 }
