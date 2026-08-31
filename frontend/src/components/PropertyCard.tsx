@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Listing } from '@/types/listing';
 
 interface PropertyCardProps {
@@ -146,7 +147,13 @@ export default function PropertyCard({
           <span>{formatPropertyType(listing.propertyType)}</span>
         </div>
 
-        <div className="property-card-title">{listing.title}</div>
+        <Link
+          href={`/listings/${listing.id}`}
+          className="property-card-title-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="property-card-title">{listing.title}</div>
+        </Link>
 
         <div className="property-card-location">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -167,8 +174,8 @@ export default function PropertyCard({
           </div>
         )}
 
-        {listing.contactNumber && (
-          <div className="property-card-contact">
+        <div className="property-card-actions">
+          {listing.contactNumber && (
             <a
               href={`tel:${listing.contactNumber.replace(/\s+/g, '')}`}
               onClick={(e) => e.stopPropagation()}
@@ -180,8 +187,19 @@ export default function PropertyCard({
               </svg>
               <span>{listing.contactNumber}</span>
             </a>
-          </div>
-        )}
+          )}
+
+          <Link
+            href={`/listings/${listing.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="property-card-view-btn"
+            title="View full property details"
+            id={`view-details-${listing.id}`}
+          >
+            <span>Details</span>
+            <span className="view-btn-arrow">→</span>
+          </Link>
+        </div>
       </div>
     </div>
   );

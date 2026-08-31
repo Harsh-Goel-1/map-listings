@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Map,
   AdvancedMarker,
@@ -369,9 +370,19 @@ export default function MapView({
                             <span className="map-group-item-bhk">
                               {item.bhk > 0 ? `${item.bhk} BHK` : item.propertyType}
                             </span>
-                            <span className="map-group-item-price">
-                              {formatPrice(item.price, item.listingType)}
-                            </span>
+                            <div className="map-group-item-price-row">
+                              <span className="map-group-item-price">
+                                {formatPrice(item.price, item.listingType)}
+                              </span>
+                              <Link
+                                href={`/listings/${item.id}`}
+                                className="map-group-item-link"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Open full listing page"
+                              >
+                                Details ↗
+                              </Link>
+                            </div>
                           </div>
                           <div className="map-group-item-sub">
                             {item.areaSqFt > 0 && (
