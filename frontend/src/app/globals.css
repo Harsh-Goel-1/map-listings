@@ -1884,6 +1884,266 @@ img {
   border: 1px solid var(--color-hairline);
 }
 
+/* ── Multiple BHK Configurations ── */
+.admin-multi-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 12px 16px;
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-md);
+  transition: all 0.15s ease;
+}
+
+.admin-multi-toggle-card.active {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.admin-multi-toggle-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-multi-toggle-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 2px;
+}
+
+.admin-multi-toggle-desc {
+  font-size: 12px;
+  color: var(--color-mute);
+  line-height: 1.4;
+}
+
+.admin-multi-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-ink);
+  color: var(--color-canvas);
+  border-radius: var(--rounded-pill);
+}
+
+/* Custom Switch Toggle */
+.admin-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.admin-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.admin-switch-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 24px;
+}
+
+.admin-switch-slider::before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.admin-switch input:checked + .admin-switch-slider {
+  background-color: var(--color-ink);
+}
+
+.admin-switch input:checked + .admin-switch-slider::before {
+  transform: translateX(20px);
+}
+
+/* Variants container & cards */
+.admin-variants-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.admin-variant-card {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  padding: 14px 16px 12px;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.admin-variant-card:hover {
+  border-color: var(--color-hairline-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.admin-variant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.admin-variant-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.admin-variant-remove-btn {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-error);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--rounded-sm);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.12s ease;
+}
+
+.admin-variant-remove-btn:hover {
+  background: #fef2f2;
+}
+
+.admin-variant-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.3fr 1fr;
+  gap: var(--space-md);
+}
+
+@media (max-width: 640px) {
+  .admin-variant-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+}
+
+.admin-price-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: #047857;
+  margin-top: 3px;
+}
+
+.admin-add-variant-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--color-canvas-soft);
+  border: 1px dashed var(--color-hairline-strong);
+  border-radius: var(--rounded-md);
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.admin-add-variant-btn:hover {
+  background: var(--color-canvas-soft-2);
+  border-color: var(--color-ink);
+}
+
+/* Summary Callout Box */
+.admin-summary-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--rounded-md);
+  padding: 12px 14px;
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.admin-summary-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-summary-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-summary-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--rounded-pill);
+  background: #ffffff;
+  border: 1px solid #86efac;
+  font-size: 11px;
+  font-weight: 500;
+  color: #15803d;
+}
+
+.admin-summary-note {
+  font-size: 11px;
+  color: #166534;
+  margin-top: 6px;
+  opacity: 0.85;
+}
+
+.admin-switch-mode-hint {
+  font-size: 12px;
+  color: var(--color-link);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-align: left;
+  display: inline-block;
+  margin-top: 4px;
+}
+
 /* ── Images & Upload Dropzone ── */
 .admin-dropzone {
   border: 2px dashed var(--color-hairline-strong);

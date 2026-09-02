@@ -88,6 +88,14 @@ public class ListingService {
     }
 
     @Transactional
+    public List<ListingDTO> createListingsBulk(List<CreateListingDTO> dtos) {
+        if (dtos == null || dtos.isEmpty()) {
+            return List.of();
+        }
+        return dtos.stream().map(this::createListing).collect(Collectors.toList());
+    }
+
+    @Transactional
     public Optional<ListingDTO> updateListing(Long id, CreateListingDTO dto) {
         return listingRepository.findById(id).map(listing -> {
             if (dto.getBhk() != null) {

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, FormEvent, DragEvent, ChangeEvent } from 'react';
 import Link from 'next/link';
-import { fetchListings, createListing, updateListing, deleteListing, CreateListingPayload } from '@/lib/api';
+import { fetchListings, createListing, createListingsBulk, updateListing, deleteListing, CreateListingPayload } from '@/lib/api';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import {
   PropertyCategory,
@@ -79,6 +79,20 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
 }
 
 // ─── Admin Form ──────────────────────────────────────────────────
+export interface BhkVariant {
+  id: string;
+  bhk: number;
+  price: number;
+  areaSqFt: number;
+}
+
+const createDefaultVariant = (bhk: number = 2, price: number = 0, areaSqFt: number = 1000): BhkVariant => ({
+  id: Math.random().toString(36).substring(2, 9),
+  bhk,
+  price,
+  areaSqFt,
+});
+
 type FormState = CreateListingPayload & { imageUrlDraft: string };
 
 const INITIAL_FORM: FormState = {
@@ -118,6 +132,31 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Multi-BHK variants state
+  const [isMultiBhk, setIsMultiBhk] = useState(false);
+  const [bhkVariants, setBhkVariants] = useState<BhkVariant[]>([
+    createDefaultVariant(2, 0, 1000),
+    createDefaultVariant(3, 0, 1500),
+  ]);
+
+  const addBhkVariant = () => {
+    const last = bhkVariants[bhkVariants.length - 1];
+    const nextBhk = last ? Number(last.bhk) + 1 : 2;
+    const nextArea = last && last.areaSqFt ? Math.round(last.areaSqFt * 1.3) : 1200;
+    setBhkVariants((prev) => [...prev, createDefaultVariant(nextBhk, 0, nextArea)]);
+  };
+
+  const removeBhkVariant = (id: string) => {
+    if (bhkVariants.length <= 1) return;
+    setBhkVariants((prev) => prev.filter((v) => v.id !== id));
+  };
+
+  const updateBhkVariant = (id: string, field: keyof Omit<BhkVariant, 'id'>, value: number) => {
+    setBhkVariants((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v))
+    );
+  };
 
   // Edit and Manage state
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
@@ -252,6 +291,7 @@ export default function AdminPage() {
 
   const handleEdit = (item: Listing) => {
     setEditingId(item.id);
+    setIsMultiBhk(false);
     setForm({
       title: item.title,
       price: item.price,
@@ -278,6 +318,7 @@ export default function AdminPage() {
 
   const handleCancelEdit = () => {
     setEditingId(null);
+    setIsMultiBhk(false);
     setForm(INITIAL_FORM);
     setError(null);
     setSuccess(null);
@@ -323,6 +364,59 @@ export default function AdminPage() {
     setSuccess(null);
 
     try {
+      if (isMultiBhk && !editingId) {
+        if (!form.title.trim()) {
+          setError('Title is required.');
+          setSubmitting(false);
+          return;
+        }
+
+        if (bhkVariants.length === 0) {
+          setError('Please add at least one BHK & Price entry.');
+          setSubmitting(false);
+          return;
+        }
+
+        for (let i = 0; i < bhkVariants.length; i++) {
+          const v = bhkVariants[i];
+          if (!v.bhk || v.bhk < 0.5 || (v.bhk * 2) % 1 !== 0) {
+            setError(`Configuration #${i + 1}: BHK must be a multiple of 0.5 (e.g. 1, 1.5, 2, 2.5, 3, 3.5, 4)`);
+            setSubmitting(false);
+            return;
+          }
+          if (v.price === undefined || v.price === null || v.price <= 0) {
+            setError(`Configuration #${i + 1}: Price must be greater than ₹0`);
+            setSubmitting(false);
+            return;
+          }
+          if (!v.areaSqFt || v.areaSqFt < 1) {
+            setError(`Configuration #${i + 1}: Area must be at least 1 sq ft`);
+            setSubmitting(false);
+            return;
+          }
+        }
+
+        const { imageUrlDraft, bhk: _b, price: _p, areaSqFt: _a, ...basePayload } = form;
+        const payloads: CreateListingPayload[] = bhkVariants.map((v) => ({
+          ...basePayload,
+          bhk: v.bhk,
+          price: v.price,
+          areaSqFt: v.areaSqFt,
+        }));
+
+        const createdListings = await createListingsBulk(payloads);
+        const idsStr = createdListings.map((l) => `#${l.id}`).join(', ');
+        setSuccess(`Successfully created ${createdListings.length} listings for "${form.title}" (IDs: ${idsStr})`);
+        setForm(INITIAL_FORM);
+        setBhkVariants([
+          createDefaultVariant(2, 0, 1000),
+          createDefaultVariant(3, 0, 1500),
+        ]);
+        setIsMultiBhk(false);
+        await loadListings();
+        return;
+      }
+
       if (!form.bhk || form.bhk < 0.5 || (form.bhk * 2) % 1 !== 0) {
         setError('BHK must be a multiple of 0.5 (e.g. 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4)');
         setSubmitting(false);
@@ -461,71 +555,7 @@ export default function AdminPage() {
                 className="admin-input"
                 value={form.title}
                 onChange={(e) => updateField('title', e.target.value)}
-                placeholder="e.g. 3 BHK in Sector 150"
-                required
-              />
-            </div>
-            <div className="admin-field">
-              <label className="admin-label" htmlFor="price">
-                Price (₹) <span className="required">*</span>
-              </label>
-              <input
-                id="price"
-                type="number"
-                className="admin-input"
-                value={form.price || ''}
-                onChange={(e) => updateField('price', Number(e.target.value))}
-                placeholder="e.g. 7500000"
-                min={0}
-                required
-              />
-            </div>
-          </div>
-          <div className="admin-grid-3">
-            <div className="admin-field">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label className="admin-label" htmlFor="bhk">
-                  BHK <span className="required">*</span>
-                </label>
-                <span style={{ fontSize: '11px', color: 'var(--color-mute)' }}>Step: 0.5 (e.g. 2.5, 3.5)</span>
-              </div>
-              <input
-                id="bhk"
-                type="number"
-                step="0.5"
-                min="0.5"
-                max="20"
-                className="admin-input"
-                value={form.bhk || ''}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  updateField('bhk', isNaN(val) ? 0 : val);
-                }}
-                placeholder="e.g. 2.5"
-                required
-              />
-              <div className="admin-bhk-chips">
-                {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    className={`admin-bhk-chip ${form.bhk === val ? 'active' : ''}`}
-                    onClick={() => updateField('bhk', val)}
-                  >
-                    {val}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="admin-field">
-              <label className="admin-label" htmlFor="areaSqFt">Area (sq ft) <span className="required">*</span></label>
-              <input
-                id="areaSqFt"
-                type="number"
-                className="admin-input"
-                value={form.areaSqFt}
-                onChange={(e) => updateField('areaSqFt', Number(e.target.value))}
-                min={1}
+                placeholder="e.g. ATS Pristine Sector 150"
                 required
               />
             </div>
@@ -540,6 +570,269 @@ export default function AdminPage() {
               />
             </div>
           </div>
+
+          {!editingId && (
+            <div className={`admin-multi-toggle-card ${isMultiBhk ? 'active' : ''}`}>
+              <div className="admin-multi-toggle-text">
+                <div className="admin-multi-toggle-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                  <span>Multiple BHK & Pricing Configurations</span>
+                  {isMultiBhk && <span className="admin-multi-badge">{bhkVariants.length} Configurations</span>}
+                </div>
+                <div className="admin-multi-toggle-desc">
+                  Add multiple BHK and pricing entries to this title (e.g. 2 BHK @ ₹75L, 3 BHK @ ₹1.2Cr). Creates separate listings for each configuration sharing location and details.
+                </div>
+              </div>
+              <label className="admin-switch" title="Toggle multiple BHK entries">
+                <input
+                  type="checkbox"
+                  checked={isMultiBhk}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsMultiBhk(checked);
+                    if (checked) {
+                      setBhkVariants((prev) => {
+                        const first = prev[0] || createDefaultVariant();
+                        return [
+                          { ...first, bhk: form.bhk || 2, price: form.price || 0, areaSqFt: form.areaSqFt || 1000 },
+                          prev[1] || createDefaultVariant((form.bhk || 2) + 1, 0, Math.round((form.areaSqFt || 1000) * 1.3)),
+                          ...prev.slice(2),
+                        ];
+                      });
+                    } else {
+                      if (bhkVariants[0]) {
+                        setForm((prev) => ({
+                          ...prev,
+                          bhk: bhkVariants[0].bhk,
+                          price: bhkVariants[0].price,
+                          areaSqFt: bhkVariants[0].areaSqFt,
+                        }));
+                      }
+                    }
+                  }}
+                />
+                <span className="admin-switch-slider" />
+              </label>
+            </div>
+          )}
+
+          {isMultiBhk && !editingId ? (
+            <div>
+              <div className="admin-variants-container">
+                {bhkVariants.map((variant, index) => (
+                  <div key={variant.id} className="admin-variant-card">
+                    <div className="admin-variant-header">
+                      <div className="admin-variant-badge">
+                        <span>Configuration #{index + 1}</span>
+                        {variant.price > 0 && (
+                          <span style={{ color: '#047857', fontWeight: 600 }}>
+                            • {formatPrice(variant.price)}
+                          </span>
+                        )}
+                      </div>
+                      {bhkVariants.length > 1 && (
+                        <button
+                          type="button"
+                          className="admin-variant-remove-btn"
+                          onClick={() => removeBhkVariant(variant.id)}
+                          title="Remove this configuration"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                            <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+                          </svg>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="admin-variant-grid">
+                      {/* BHK */}
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label className="admin-label">
+                            BHK <span className="required">*</span>
+                          </label>
+                          <span style={{ fontSize: '10px', color: 'var(--color-mute)' }}>Step: 0.5</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          max="20"
+                          className="admin-input"
+                          value={variant.bhk || ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            updateBhkVariant(variant.id, 'bhk', isNaN(val) ? 0 : val);
+                          }}
+                          placeholder="e.g. 2 or 2.5"
+                          required
+                        />
+                        <div className="admin-bhk-chips">
+                          {[1, 1.5, 2, 2.5, 3, 3.5, 4, 5].map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              className={`admin-bhk-chip ${variant.bhk === val ? 'active' : ''}`}
+                              onClick={() => updateBhkVariant(variant.id, 'bhk', val)}
+                            >
+                              {val}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label className="admin-label">
+                          Price (₹) <span className="required">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="admin-input"
+                          value={variant.price || ''}
+                          onChange={(e) => updateBhkVariant(variant.id, 'price', Number(e.target.value))}
+                          placeholder="e.g. 8500000"
+                          min={0}
+                          required
+                        />
+                        {variant.price > 0 && (
+                          <div className="admin-price-hint">
+                            = {formatPrice(variant.price)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Area */}
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label className="admin-label">
+                          Area (sq ft) <span className="required">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="admin-input"
+                          value={variant.areaSqFt || ''}
+                          onChange={(e) => updateBhkVariant(variant.id, 'areaSqFt', Number(e.target.value))}
+                          placeholder="e.g. 1250"
+                          min={1}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="admin-add-variant-btn"
+                  onClick={addBhkVariant}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                    <path d="M12 5v14m-7-7h14" />
+                  </svg>
+                  Add Another BHK & Price Configuration
+                </button>
+              </div>
+
+              {/* Summary Callout */}
+              <div className="admin-summary-box">
+                <div className="admin-summary-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                    <path d="m9 12 2 2 4-4" />
+                    <circle cx="12" cy="12" r="10" />
+                  </svg>
+                  <span>
+                    {bhkVariants.length} listings will be created with title &ldquo;{form.title.trim() || 'Untitled'}&rdquo;:
+                  </span>
+                </div>
+                <div className="admin-summary-tags">
+                  {bhkVariants.map((v, i) => (
+                    <span key={v.id || i} className="admin-summary-tag">
+                      <strong>{v.bhk ? `${v.bhk} BHK` : '—'}</strong>
+                      {v.areaSqFt ? `(${v.areaSqFt} sq ft)` : ''}
+                      {v.price > 0 ? `• ${formatPrice(v.price)}` : '• ₹0'}
+                    </span>
+                  ))}
+                </div>
+                <div className="admin-summary-note">
+                  All listings will share identical address, location coordinates, photos, and descriptions.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="admin-grid-3">
+              <div className="admin-field">
+                <label className="admin-label" htmlFor="price">
+                  Price (₹) <span className="required">*</span>
+                </label>
+                <input
+                  id="price"
+                  type="number"
+                  className="admin-input"
+                  value={form.price || ''}
+                  onChange={(e) => updateField('price', Number(e.target.value))}
+                  placeholder="e.g. 7500000"
+                  min={0}
+                  required
+                />
+                {form.price > 0 && (
+                  <div className="admin-price-hint">
+                    = {formatPrice(form.price)}
+                  </div>
+                )}
+              </div>
+              <div className="admin-field">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="admin-label" htmlFor="bhk">
+                    BHK <span className="required">*</span>
+                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--color-mute)' }}>Step: 0.5 (e.g. 2.5, 3.5)</span>
+                </div>
+                <input
+                  id="bhk"
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  max="20"
+                  className="admin-input"
+                  value={form.bhk || ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateField('bhk', isNaN(val) ? 0 : val);
+                  }}
+                  placeholder="e.g. 2.5"
+                  required
+                />
+                <div className="admin-bhk-chips">
+                  {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      className={`admin-bhk-chip ${form.bhk === val ? 'active' : ''}`}
+                      onClick={() => updateField('bhk', val)}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="admin-field">
+                <label className="admin-label" htmlFor="areaSqFt">Area (sq ft) <span className="required">*</span></label>
+                <input
+                  id="areaSqFt"
+                  type="number"
+                  className="admin-input"
+                  value={form.areaSqFt}
+                  onChange={(e) => updateField('areaSqFt', Number(e.target.value))}
+                  min={1}
+                  required
+                />
+              </div>
+            </div>
+          )}
         </section>
 
         {/* ── Section: Property Classification ── */}
@@ -789,9 +1082,13 @@ export default function AdminPage() {
             {submitting
               ? editingId
                 ? 'Updating…'
+                : isMultiBhk
+                ? `Creating ${bhkVariants.length} Listings…`
                 : 'Creating…'
               : editingId
               ? 'Update Listing'
+              : isMultiBhk
+              ? `Create ${bhkVariants.length} Listings`
               : 'Create Listing'}
           </button>
         </div>

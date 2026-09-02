@@ -74,6 +74,29 @@ export async function createListing(payload: CreateListingPayload): Promise<List
   return response.json();
 }
 
+export async function createListingsBulk(payloads: CreateListingPayload[]): Promise<Listing[]> {
+  try {
+    const response = await fetch(`${API_BASE}/api/listings/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payloads),
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch {
+    // If bulk endpoint fails (e.g. network issue or older server), fallback to sequential
+  }
+
+  // Graceful fallback for backwards compatibility
+  const results: Listing[] = [];
+  for (const payload of payloads) {
+    const created = await createListing(payload);
+    results.push(created);
+  }
+  return results;
+}
+
 export async function updateListing(id: number, payload: CreateListingPayload): Promise<Listing> {
   const response = await fetch(`${API_BASE}/api/listings/${id}`, {
     method: 'PUT',

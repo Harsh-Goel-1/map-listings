@@ -55,6 +55,12 @@ public class ListingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PostMapping("/bulk")
+    public ResponseEntity<List<ListingDTO>> createListingsBulk(@Valid @RequestBody List<CreateListingDTO> dtos) {
+        List<ListingDTO> created = listingService.createListingsBulk(dtos);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<ListingDTO> updateListing(@PathVariable Long id, @Valid @RequestBody CreateListingDTO dto) {
         return listingService.updateListing(id, dto)
